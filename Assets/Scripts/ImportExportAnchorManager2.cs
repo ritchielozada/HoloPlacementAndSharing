@@ -5,6 +5,7 @@ using System;
 using System.Collections;
 using UnityEngine;
 using HoloToolkit.Unity;
+using UnityEngine.VR.WSA.Persistence;
 
 #if UNITY_WSA && !UNITY_EDITOR
 using System.Collections.Generic;
@@ -244,9 +245,11 @@ namespace HoloToolkit.Sharing.Tests
 
         private void Start()
         {
+#if UNITY_WSA && !UNITY_EDITOR
             // TODO: Do not conflict with WorldAnchorStore Setup, Setup AnchorStoreReady
             Debug.Log(">>> WorldAnchorStore GETASYNC");
             WorldAnchorStore.GetAsync(AnchorStoreReady);
+#endif
 
             // SharingStage should be valid at this point, but we may not be connected.
             if (SharingStage.Instance.IsConnected)

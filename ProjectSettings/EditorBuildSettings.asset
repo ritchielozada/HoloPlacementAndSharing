@@ -6,5 +6,5 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/AnchorTest1.unity
-    guid: 67315e7cfc369694e8403911a0fce945
+    path: Assets/Scenes/LeftRightEyeTest.unity
+    guid: 9877ad57bb0c4ad4185fdd6a65f0ce71
