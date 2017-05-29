@@ -210,9 +210,7 @@ namespace HoloToolkit.Sharing.Tests
             currentState = ImportExportState.AnchorStore_Initializing;
 
             // TODO: Do not conflict with WorldAnchorStore Setup, Setup AnchorStoreReady
-//            Debug.Log(">>> WorldAnchorStore GETASYNC");
-//            WorldAnchorStore.GetAsync(AnchorStoreReady);
-            //StartCoroutine(WaitForWorldAnchorManager());
+            //WorldAnchorStore.GetAsync(AnchorStoreReady);            
 #else
             currentState = ImportExportState.Ready;
 #endif
@@ -231,6 +229,7 @@ namespace HoloToolkit.Sharing.Tests
                 yield return new WaitForSeconds(0.5f);
             }
 
+            // This section can also FAIL and AnchorStore is not setup for WorldAnchorManager
             Debug.Log(">>> Waiting for AnchorStore");
             while (WorldAnchorManager.Instance.AnchorStore == null)
             {
@@ -247,7 +246,6 @@ namespace HoloToolkit.Sharing.Tests
         {
 #if UNITY_WSA && !UNITY_EDITOR
             // TODO: Do not conflict with WorldAnchorStore Setup, Setup AnchorStoreReady
-            Debug.Log(">>> WorldAnchorStore GETASYNC");
             WorldAnchorStore.GetAsync(AnchorStoreReady);
 #endif
 

@@ -6,5 +6,11 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/Scenes/Share1.unity
+    guid: 24582f3080bde1e42a658d69c80b2d34
+  - enabled: 0
     path: Assets/Scenes/LeftRightEyeTest.unity
     guid: 9877ad57bb0c4ad4185fdd6a65f0ce71
+  - enabled: 0
+    path: Assets/Scenes/TapToPlace.unity
+    guid: 1f9918071e73d33438ff37d52b66a135
