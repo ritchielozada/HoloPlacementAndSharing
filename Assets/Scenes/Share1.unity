@@ -281,7 +281,7 @@ MonoBehaviour:
   MinTrustworthySerializedAnchorDataSize: 100000
   PlacementObjectAnchorName: PlacementObjectAnchor
   DebugText: {fileID: 409282706}
-  PlacementObject: {fileID: 922363575}
+  PlacementObject: {fileID: 1325460242}
 --- !u!1001 &338299771
 Prefab:
   m_ObjectHideFlags: 0
@@ -485,7 +485,7 @@ GameObject:
   m_Component:
   - component: {fileID: 922363572}
   - component: {fileID: 922363574}
-  - component: {fileID: 922363575}
+  - component: {fileID: 922363573}
   m_Layer: 0
   m_Name: AnchorObject
   m_TagString: Untagged
@@ -500,7 +500,7 @@ Transform:
   m_PrefabInternal: {fileID: 0}
   m_GameObject: {fileID: 922363571}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 2}
+  m_LocalPosition: {x: 0, y: -0.2, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children:
   - {fileID: 409282705}
@@ -508,19 +508,7 @@ Transform:
   m_Father: {fileID: 1325460243}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!65 &922363574
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_PrefabParentObject: {fileID: 0}
-  m_PrefabInternal: {fileID: 0}
-  m_GameObject: {fileID: 922363571}
-  m_Material: {fileID: 0}
-  m_IsTrigger: 0
-  m_Enabled: 1
-  serializedVersion: 2
-  m_Size: {x: 0.2, y: 0.08, z: 0.2}
-  m_Center: {x: 0, y: 0.04, z: 0}
---- !u!114 &922363575
+--- !u!114 &922363573
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_PrefabParentObject: {fileID: 0}
@@ -533,9 +521,21 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   DebugText: {fileID: 409282706}
   SavedAnchorFriendlyName: PlacementObjectAnchor
-  PlaceParentOnTap: 0
+  PlaceParentOnTap: 1
   ParentGameObjectToPlace: {fileID: 1325460242}
   IsBeingPlaced: 0
+--- !u!65 &922363574
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 0}
+  m_GameObject: {fileID: 922363571}
+  m_Material: {fileID: 0}
+  m_IsTrigger: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Size: {x: 0.2, y: 0.08, z: 0.2}
+  m_Center: {x: 0, y: 0.04, z: 0}
 --- !u!1001 &925866631
 Prefab:
   m_ObjectHideFlags: 0
@@ -600,7 +600,7 @@ Transform:
   m_PrefabInternal: {fileID: 0}
   m_GameObject: {fileID: 1325460242}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 2}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children:
   - {fileID: 922363572}

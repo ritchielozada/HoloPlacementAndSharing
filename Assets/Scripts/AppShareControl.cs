@@ -25,7 +25,7 @@ public class AppShareControl : Singleton<AppShareControl>
     public string PlacementObjectAnchorName = "PlacementObjectAnchor";
 
     [SerializeField] private TextMesh DebugText;
-    [SerializeField] private TapToPlace2 PlacementObject;
+    [SerializeField] private GameObject PlacementObject;
 
     private WorldAnchorStore anchorStore;
     private RoomManager roomManager;
@@ -253,8 +253,6 @@ public class AppShareControl : Singleton<AppShareControl>
 
     void Start()
     {
-        PlacementObject.SavedAnchorFriendlyName = PlacementObjectAnchorName;
-        
         // Setup Anchor System
         CurrentState = AnchorManagementState.WaitingForAnchorStore;
         WorldAnchorStore.GetAsync(AnchorStoreReady);
@@ -307,8 +305,8 @@ public class AppShareControl : Singleton<AppShareControl>
             {
                 if (ShouldLocalUserCreateRoom)
                 {
-                    Debug.Log("Anchor Manager: Creating room " + RoomName);
-                    DebugDisplay(string.Format("\nInitializeRoom() - Creating room " + RoomName));
+                    Debug.LogFormat("InitializeRoom() - User Creating Room: {0}", RoomName);
+                    DebugDisplay(string.Format("\nInitializeRoom() - User Creating Room: {0}",RoomName));
 
                     // To keep anchors alive even if all users have left the session ...
                     // Pass in true instead of false in CreateRoom.
@@ -326,26 +324,15 @@ public class AppShareControl : Singleton<AppShareControl>
                     {
                         currentRoom = room;
                         roomManager.JoinRoom(currentRoom);
-
-                        if (SharingStage.Instance.ShowDetailedLogs)
-                        {
-                            Debug.Log("Anchor Manager: JOINING room " + room.GetName().GetString());
-                        }
                         
-                        DebugDisplay(string.Format("\nJOINING room " + room.GetName().GetString()));
+                        Debug.LogFormat("InitializeRoom() - User Joining Room: {0}", room.GetName().GetString());
+                        DebugDisplay(string.Format("\nInitializeRoom() - User Joining Room: {0}", room.GetName().GetString()));
                         break;
                     }
                 }
 
                 if (currentRoom == null)
-                {
-                    // Couldn't locate a matching room, just join the first one.
-                    //Debug.Log("Executing GetRoom(0)");
-                    //DebugDisplay("Executing GetRoom(0)");
-                    //currentRoom = roomManager.GetRoom(0);
-                    //roomManager.JoinRoom(currentRoom);
-                    //RoomName = currentRoom.GetName().GetString();
-
+                {                    
                     DebugDisplay(string.Format("\nCannot Find Matching Room: {0}\nWait for First Session User to Create", RoomName));
                 }                
             }
@@ -356,21 +343,17 @@ public class AppShareControl : Singleton<AppShareControl>
         Debug.LogFormat("Room Anchor Count: {0}", roomAnchorCount);
         DebugDisplay(string.Format("\nRoom Anchor Count: {0}", roomAnchorCount));
 
-        if (SharingStage.Instance.ShowDetailedLogs)
-        {
-            Debug.LogFormat("Detailed Anchor Manager: In room {0} with ID {1}",
-                roomManager.GetCurrentRoom().GetName().GetString(),
-                roomManager.GetCurrentRoom().GetID().ToString());
-        }
-
-        DebugDisplay(string.Format("\nIn room {0} with ID {1}",
+        Debug.LogFormat("In room ({0}) with ID {1}",
+            roomManager.GetCurrentRoom().GetName().GetString(),
+            roomManager.GetCurrentRoom().GetID().ToString());
+        DebugDisplay(string.Format("\nIn room ({0}) with ID {1}",
             roomManager.GetCurrentRoom().GetName().GetString(),
             roomManager.GetCurrentRoom().GetID().ToString()));
 
         if (roomAnchorCount == 0)
         {
 #if UNITY_WSA && !UNITY_EDITOR            
-            // If the room has no anchors, request the initial anchor            
+            // If the room has no anchors, create the initial anchor            
             CurrentState = AnchorManagementState.CreateLocalAnchor;
 
 #else                
@@ -382,9 +365,7 @@ public class AppShareControl : Singleton<AppShareControl>
             // Room already has anchors
             CurrentState = AnchorManagementState.RoomInitialized;
         }
-
-
-
+        
         yield return null;
     }
 

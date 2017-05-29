@@ -41,11 +41,6 @@ namespace HoloToolkit.Unity.SpatialMapping
         public bool IsBeingPlaced;
 
         /// <summary>
-        /// Manages persisted anchors.
-        /// </summary>
-        //protected WorldAnchorManager anchorManager;
-
-        /// <summary>
         /// Controls spatial mapping.  In this script we access spatialMappingManager
         /// to control rendering and to access the physics layer mask.
         /// </summary>
@@ -62,14 +57,7 @@ namespace HoloToolkit.Unity.SpatialMapping
         }
 
         protected virtual void Start()
-        {
-            // Make sure we have all the components in the scene we need.
-            //anchorManager = WorldAnchorManager.Instance;
-            //if (anchorManager == null)
-            //{
-            //    Debug.LogError("This script expects that you have a WorldAnchorManager component in your scene.");
-            //}
-
+        {            
             appShareControl = AppShareControl.Instance;
             if (appShareControl == null)
             {
@@ -80,23 +68,7 @@ namespace HoloToolkit.Unity.SpatialMapping
             if (spatialMappingManager == null)
             {
                 Debug.LogError("This script expects that you have a SpatialMappingManager component in your scene.");
-            }
-
-            //if (anchorManager != null && spatialMappingManager != null)
-            //{
-            //    // HACK: Manage Anchor Creation is App Main Control
-
-            //    // If we are not starting out with actively placing the object, give it a World Anchor
-            //    //if(!IsBeingPlaced)
-            //    //{
-            //    //    anchorManager.AttachAnchor(gameObject, SavedAnchorFriendlyName);
-            //    //}
-            //}
-            //else
-            //{
-            //    // If we don't have what we need to proceed, we may as well remove ourselves.
-            //    Destroy(this);
-            //}
+            }            
 
             if (PlaceParentOnTap)
             {
