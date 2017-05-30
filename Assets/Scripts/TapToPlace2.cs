@@ -23,13 +23,10 @@ namespace HoloToolkit.Unity.SpatialMapping
     {
         [SerializeField] private TextMesh DebugText;
 
-        [Tooltip("Supply a friendly name for the anchor as the key name for the WorldAnchorStore.")]
-        public string SavedAnchorFriendlyName = "SavedAnchorFriendlyName";
+        //[Tooltip("Place parent on tap instead of current game object.")]
+        //public bool PlaceParentOnTap;
 
-        [Tooltip("Place parent on tap instead of current game object.")]
-        public bool PlaceParentOnTap;
-
-        [Tooltip("Specify the parent game object to be moved on tap, if the immediate parent is not desired.")]
+        //[Tooltip("Specify the parent game object to be moved on tap, if the immediate parent is not desired.")]
         public GameObject ParentGameObjectToPlace;
 
         /// <summary>
@@ -48,6 +45,8 @@ namespace HoloToolkit.Unity.SpatialMapping
 
         protected AppShareControl appShareControl;
 
+        private Vector3 localPositionOffset;
+
         private void DebugDisplay(string msg)
         {
             if (DebugText != null)
@@ -57,7 +56,9 @@ namespace HoloToolkit.Unity.SpatialMapping
         }
 
         protected virtual void Start()
-        {            
+        {
+            localPositionOffset = gameObject.transform.localPosition;  // Save Offset for reconnection
+
             appShareControl = AppShareControl.Instance;
             if (appShareControl == null)
             {
@@ -70,15 +71,15 @@ namespace HoloToolkit.Unity.SpatialMapping
                 Debug.LogError("This script expects that you have a SpatialMappingManager component in your scene.");
             }            
 
-            if (PlaceParentOnTap)
-            {
-                if (ParentGameObjectToPlace != null && !gameObject.transform.IsChildOf(ParentGameObjectToPlace.transform))
-                {
-                    Debug.LogError("The specified parent object is not a parent of this object.");
-                }
+            //if (PlaceParentOnTap)
+            //{
+            //    if (ParentGameObjectToPlace != null && !gameObject.transform.IsChildOf(ParentGameObjectToPlace.transform))
+            //    {
+            //        Debug.LogError("The specified parent object is not a parent of this object.");
+            //    }
 
-                DetermineParent();
-            }
+            //    DetermineParent();
+            //}
         }
 
         protected virtual void Update()
@@ -99,24 +100,27 @@ namespace HoloToolkit.Unity.SpatialMapping
                     toQuat.x = 0;
                     toQuat.z = 0;
 
+                    gameObject.transform.position = hitInfo.point;
+                    gameObject.transform.rotation = toQuat;
+
                     // Move this object to where the raycast
                     // hit the Spatial Mapping mesh.
                     // Here is where you might consider adding intelligence
                     // to how the object is placed.  For example, consider
                     // placing based on the bottom of the object's
                     // collider so it sits properly on surfaces.
-                    if (PlaceParentOnTap)
-                    {
-                        // Place the parent object as well but keep the focus on the current game object
-                        Vector3 currentMovement = hitInfo.point - gameObject.transform.position;
-                        ParentGameObjectToPlace.transform.position += currentMovement;
-                        ParentGameObjectToPlace.transform.rotation = toQuat;
-                    }
-                    else
-                    {
-                        gameObject.transform.position = hitInfo.point;
-                        gameObject.transform.rotation = toQuat;
-                    }
+                    //if (PlaceParentOnTap)
+                    //{
+                    //    // Place the parent object as well but keep the focus on the current game object
+                    //    Vector3 currentMovement = hitInfo.point - gameObject.transform.position;
+                    //    ParentGameObjectToPlace.transform.position += currentMovement;
+                    //    ParentGameObjectToPlace.transform.rotation = toQuat;
+                    //}
+                    //else
+                    //{
+                    //    gameObject.transform.position = hitInfo.point;
+                    //    gameObject.transform.rotation = toQuat;
+                    //}
                 }
             }
         }
@@ -133,6 +137,7 @@ namespace HoloToolkit.Unity.SpatialMapping
                 {
                     appShareControl.PlacementStart();                    
                     spatialMappingManager.DrawVisualMeshes = true;
+                    gameObject.transform.parent = null;
                     DebugDisplay("\nTap Placement Active");
                 }
                 else
@@ -145,6 +150,10 @@ namespace HoloToolkit.Unity.SpatialMapping
             else
             {
                 spatialMappingManager.DrawVisualMeshes = false;
+                ParentGameObjectToPlace.transform.position = gameObject.transform.position - localPositionOffset;
+                ParentGameObjectToPlace.transform.rotation = gameObject.transform.rotation;
+                gameObject.transform.parent = ParentGameObjectToPlace.transform;
+
                 appShareControl.PlacementDone();                                
                 DebugDisplay("\nTap Placement DONE!");                
             }
@@ -157,7 +166,7 @@ namespace HoloToolkit.Unity.SpatialMapping
                 if (gameObject.transform.parent == null)
                 {
                     Debug.LogError("The selected GameObject has no parent.");
-                    PlaceParentOnTap = false;
+                    //PlaceParentOnTap = false;
                 }
                 else
                 {

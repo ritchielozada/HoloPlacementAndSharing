@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using HoloToolkit.Sharing;
 using HoloToolkit.Sharing.Tests;
 using HoloToolkit.Unity;
@@ -18,23 +19,23 @@ public class AppShareControl : Singleton<AppShareControl>
     public bool IsAnchorLocated;
     public bool IsLocalAnchor;
 
-    public bool KeepRoomAlive = true;
-    public string RoomName = "ShareRoom";
+    public bool KeepRoomAlive = true;                                   // Do not close Room/Session to maintain previous anchors
+    public string RoomName = "ShareRoom";                               // Predefined Room  Name
     public long RoomID = 74656;                                         // Fixed RoomID to mainain room
-    public uint MinTrustworthySerializedAnchorDataSize = 100000;        // Min Anchor Data Size (larger contains more feature detail)
-    public string PlacementObjectAnchorName = "PlacementObjectAnchor";
+    public uint MinTrustworthySerializedAnchorDataSize = 100000;        // Min Anchor Data Size (larger contains more feature detail)    
 
-    [SerializeField] private TextMesh DebugText;
-    [SerializeField] private GameObject PlacementObject;
+    [SerializeField] private TextMesh DebugText;    
 
     private WorldAnchorStore anchorStore;
     private RoomManager roomManager;
     private RoomManagerAdapter roomManagerListener;
     private Room currentRoom;
-    private byte[] anchorRawBytes;
+    private byte[] anchorDownloadRawBytes;
     private List<byte> exportingAnchorBytes = new List<byte>();
     private string exportingAnchorName;
     private WorldAnchorTransferBatch sharedAnchorInterface;
+    private XString storedAnchorString;
+    private string remoteAnchorName;
 
 
     private AnchorManagementState _previousTrackingState;
@@ -56,14 +57,15 @@ public class AppShareControl : Singleton<AppShareControl>
         AnchorStoreReady,
         InitializeRoom,
         InitializingRoom,
-        RoomInitialized,
+        
 
         CreateLocalAnchor,
         CreatingLocalAnchor,
         ReadyToExportLocalAnchor,
         ExportingLocalAnchor,
 
-
+        GetRemoteAnchor,
+        GetRemoteAnchorStarting,
         RemoteAnchorDataRequest,
         RemoteAnchorDataReady,
         RemoteAnchorAttaching,
@@ -79,11 +81,6 @@ public class AppShareControl : Singleton<AppShareControl>
         AnchorPlacementStart,
         AnchorPlacement,
         AnchorPlacementDone
-
-
-        //AnchorSetup,
-        //AnchorNotLocated,
-        //AnchorLocated
     }
 
     private void DebugDisplay(string msg)
@@ -140,12 +137,8 @@ public class AppShareControl : Singleton<AppShareControl>
 
     private void RoomManagerCallbacks_AnchorsChanged(Room room)
     {
-        if (SharingStage.Instance.ShowDetailedLogs)
-        {
-            Debug.LogFormat("Anchor Manager: Anchors in room {0} changed", room.GetName());
-        }
-
-        DebugDisplay(string.Format("\nAnchors in room {0} changed", room.GetName()));        
+        Debug.LogFormat("Anchor Manager: Anchors in room {0} changed", room.GetName());
+        DebugDisplay(string.Format("\nAnchors in ({0}) CHANGED!", room.GetName()));        
 
         // if we're currently in the room where the anchors changed
         if (currentRoom == room)
@@ -155,15 +148,15 @@ public class AppShareControl : Singleton<AppShareControl>
     }
 
     private void MakeAnchorDataRequest()
-    {
-        if (roomManager.DownloadAnchor(currentRoom, currentRoom.GetAnchorName(0)))
+    {        
+        if (storedAnchorString != null && roomManager.DownloadAnchor(currentRoom, storedAnchorString))
         {            
             CurrentState = AnchorManagementState.RemoteAnchorDataRequest;
         }
         else
         {
             Debug.LogError("Anchor Manager: Couldn't make the download request.");            
-            DebugDisplay(string.Format("\nCouldn't make the download request."));            
+            DebugDisplay(string.Format("\nCouldn't make the download request: {0}", storedAnchorString.GetString()));
             CurrentState = AnchorManagementState.RemoteAnchorAttachFailed;
         }
     }
@@ -177,8 +170,8 @@ public class AppShareControl : Singleton<AppShareControl>
             Debug.LogFormat("Remote Anchor Download Size: {0} bytes.", datasize.ToString());
             DebugDisplay(string.Format("\nRemote Anchor Download Size: {0} bytes.", datasize.ToString()));
 
-            anchorRawBytes = new byte[datasize];
-            request.GetData(anchorRawBytes, datasize);            
+            anchorDownloadRawBytes = new byte[datasize];
+            request.GetData(anchorDownloadRawBytes, datasize);            
             CurrentState = AnchorManagementState.RemoteAnchorDataReady;
         }
         else
@@ -199,6 +192,9 @@ public class AppShareControl : Singleton<AppShareControl>
             Debug.Log("Anchor Manager: Sucessfully Exported Local Anchor");
             DebugDisplay("\nSucessfully Exported Local Anchor");
             CurrentState = AnchorManagementState.LocalAnchorExported;
+
+            // Notify other users of new uploaded anchor
+            CustomMessages2.Instance.SendNewAnchorNotification(exportingAnchorName);
         }
         else
         {            
@@ -228,7 +224,7 @@ public class AppShareControl : Singleton<AppShareControl>
         ResetState();
     }
 
-    private void SharingManagerConnected(object sender, System.EventArgs e)
+    private void SharingManagerConnected(object sender = null, EventArgs e = null)
     {
         SharingStage.Instance.SharingManagerConnected -= SharingManagerConnected;        
         DebugDisplay("\nSharingManagerConnected() Event");
@@ -248,19 +244,41 @@ public class AppShareControl : Singleton<AppShareControl>
         SharingStage.Instance.SessionsTracker.CurrentUserJoined += CurrentUserJoinedSession;
         SharingStage.Instance.SessionsTracker.CurrentUserLeft += CurrentUserLeftSession;
 
+        // Setup Sharing Service Connection        
+        SharingStage.Instance.SessionsTracker.ServerConnected += SessionsTracker_ServerConnected;
+        SharingStage.Instance.SessionsTracker.ServerDisconnected += SessionsTracker_ServerDisconnected;
+
         IsSharingManagerConnected = true;        
+    }
+
+    private void NewAnchorPlacementMessage(NetworkInMessage msg)
+    {
+        // TODO: Load New Anchor
+        remoteAnchorName = CustomMessages2.Instance.ReadString(msg);
+        DebugDisplay(string.Format(">>> NEW ANCHOR MESSAGE: {0}", remoteAnchorName));
+        ClearPlacementObjectAnchors();
+        CurrentState = AnchorManagementState.GetRemoteAnchor;
     }
 
     void Start()
     {
         // Setup Anchor System
+        remoteAnchorName = string.Empty;
         CurrentState = AnchorManagementState.WaitingForAnchorStore;
         WorldAnchorStore.GetAsync(AnchorStoreReady);
 
-        // Setup Sharing Service Connection        
-        SharingStage.Instance.SessionsTracker.ServerConnected += SessionsTracker_ServerConnected;
-        SharingStage.Instance.SessionsTracker.ServerDisconnected += SessionsTracker_ServerDisconnected;
-        SharingStage.Instance.SharingManagerConnected += SharingManagerConnected;
+        // Setup Message Handlers
+        CustomMessages2.Instance.MessageHandlers[CustomMessages2.AppShareControlMessageID.NewAnchorPlacement] = NewAnchorPlacementMessage;
+
+        // Setup Connection Immediately if available, otherwise handle as an event
+        if (SharingStage.Instance.IsConnected)
+        {
+            SharingManagerConnected();
+        }
+        else
+        {
+            SharingStage.Instance.SharingManagerConnected += SharingManagerConnected;            
+        }        
     }
 
     private static bool ShouldLocalUserCreateRoom
@@ -357,13 +375,13 @@ public class AppShareControl : Singleton<AppShareControl>
             CurrentState = AnchorManagementState.CreateLocalAnchor;
 
 #else                
-            CurrentState = AnchorManagementState.RoomInitialized;            
+            CurrentState = AnchorManagementState.GetRemoteAnchor;            
 #endif
         }
         else
         {
             // Room already has anchors
-            CurrentState = AnchorManagementState.RoomInitialized;
+            CurrentState = AnchorManagementState.GetRemoteAnchor;
         }
         
         yield return null;
@@ -399,7 +417,7 @@ public class AppShareControl : Singleton<AppShareControl>
                 Debug.LogFormat("Anchor Manager: Attempting to Load CACHED Anchor {0}", anchorName);
                 DebugDisplay(string.Format("\nAttempting to Load CACHED anchor {0}", anchorName));
 
-                WorldAnchor anchor = anchorStore.Load(ids[index], PlacementObject.gameObject);
+                WorldAnchor anchor = anchorStore.Load(ids[index], gameObject);
                 if (anchor.isLocated)
                 {
                     // TODO: Notify Anchor is Located                    
@@ -423,6 +441,7 @@ public class AppShareControl : Singleton<AppShareControl>
     {
         IsAnchorConfigured = false;
         IsLocalAnchor = false;
+        CurrentState = AnchorManagementState.GetRemoteAnchorStarting;
 
         // First, are there any anchors in this room?
         int anchorCount = currentRoom.GetAnchorCount();        
@@ -430,13 +449,20 @@ public class AppShareControl : Singleton<AppShareControl>
         DebugDisplay(string.Format("\nRoom Anchors Found: {0}", anchorCount.ToString()));
 
 #if UNITY_WSA && !UNITY_EDITOR
-
         // If there are anchors, we should attach to the last (most recent) one.
         if (anchorCount > 0)
         {
             // Extract the name of the anchor.
-            XString storedAnchorString = currentRoom.GetAnchorName(anchorCount - 1);
-            string storedAnchorName = storedAnchorString.GetString();
+            string storedAnchorName;
+            if (remoteAnchorName != string.Empty)
+            {
+                storedAnchorString = new XString(remoteAnchorName);                
+            }
+            else
+            {
+                storedAnchorString = currentRoom.GetAnchorName(anchorCount - 1);                
+            }
+            storedAnchorName = storedAnchorString.GetString();
 
             // Attempt to attach to the anchor in our local anchor store.
             if (AttachToCachedAnchor(storedAnchorName))
@@ -468,12 +494,9 @@ public class AppShareControl : Singleton<AppShareControl>
     private void Anchor_OnTrackingChanged_InitialAnchor(WorldAnchor self, bool located)
     {
         if (located)
-        {
-            if (SharingStage.Instance.ShowDetailedLogs)
-            {
-                Debug.Log("Anchor Manager: Found anchor, ready to export");
-            }            
-            DebugDisplay(string.Format("\nFound anchor, ready to export"));
+        {            
+            Debug.Log("\nLocal Anchor Located - Ready for Export");
+            DebugDisplay(string.Format("\nLocal Anchor Located - Ready for Export"));
 
             CurrentState = AnchorManagementState.ReadyToExportLocalAnchor;
             IsAnchorLocated = true;
@@ -493,10 +516,11 @@ public class AppShareControl : Singleton<AppShareControl>
         CurrentState = AnchorManagementState.CreatingLocalAnchor;
 
         // Use existing Anchor or Create as needed
-        WorldAnchor anchor = PlacementObject.gameObject.EnsureComponent<WorldAnchor>();
+        WorldAnchor anchor = gameObject.EnsureComponent<WorldAnchor>();
 
         IsLocalAnchor = true;
-        IsAnchorConfigured = false;        
+        IsAnchorConfigured = false;
+        exportingAnchorBytes.Clear();
         
         if (anchor.isLocated)
         {
@@ -519,13 +543,11 @@ public class AppShareControl : Singleton<AppShareControl>
         DebugDisplay(string.Format("\nExport Anchor Size {0} - {1}/{2}: {3}",
             exportingAnchorName, exportingAnchorBytes.Count, MinTrustworthySerializedAnchorDataSize,
             exportingAnchorBytes.Count > MinTrustworthySerializedAnchorDataSize));
+
         if (status == SerializationCompletionReason.Succeeded && exportingAnchorBytes.Count > MinTrustworthySerializedAnchorDataSize)
         {
-            if (SharingStage.Instance.ShowDetailedLogs)
-            {
-                Debug.Log("Anchor Manager: Uploading anchor: " + exportingAnchorName);
-            }            
-            DebugDisplay(string.Format("\nUploading anchor: " + exportingAnchorName));
+            Debug.LogFormat("Uploading anchor: {0}", exportingAnchorName);
+            DebugDisplay(string.Format("\nUploading anchor: {0}", exportingAnchorName));
 
             roomManager.UploadAnchor(
                 currentRoom,
@@ -546,17 +568,14 @@ public class AppShareControl : Singleton<AppShareControl>
     {
         CurrentState = AnchorManagementState.ExportingLocalAnchor;
 
-        WorldAnchor anchor = PlacementObject.gameObject.GetComponent<WorldAnchor>();
+        WorldAnchor anchor = gameObject.GetComponent<WorldAnchor>();
         string guidString = Guid.NewGuid().ToString();        
         exportingAnchorName = guidString;
 
         // Save the anchor to our local anchor store.
         if (anchor != null && anchorStore.Save(exportingAnchorName, anchor))
         {
-            if (SharingStage.Instance.ShowDetailedLogs)
-            {
-                Debug.Log("Anchor Manager: Exporting anchor " + exportingAnchorName);
-            }
+            Debug.LogFormat("Exporting anchor: {0}", exportingAnchorName);
             DebugDisplay(string.Format("\nExporting anchor: {0}", exportingAnchorName));
 
             sharedAnchorInterface = new WorldAnchorTransferBatch();
@@ -578,17 +597,16 @@ public class AppShareControl : Singleton<AppShareControl>
         {
             if (anchorBatch.GetAllIds().Length > 0)
             {
-                string first = anchorBatch.GetAllIds()[0];
+                // HACK: Specify Anchor ID
+                //string anchorEntry = anchorBatch.GetAllIds();
+                string anchorEntry = storedAnchorString.GetString();
 
-                if (SharingStage.Instance.ShowDetailedLogs)
-                {
-                    Debug.Log("Anchor Manager: Sucessfully Attached Remote Anchor" + first);
-                }
-                
-                DebugDisplay(string.Format("\nSucessfully Attached Remote Anchor" + first));
+                Debug.LogFormat("Anchor Manager: Sucessfully Attached Remote Anchor: {0}", anchorEntry);
+                DebugDisplay(string.Format("\nSucessfully Attached Remote Anchor: {0}", anchorEntry));
 
-                WorldAnchor anchor = anchorBatch.LockObject(first, PlacementObject.gameObject);
-                anchorStore.Save(first, anchor);
+                WorldAnchor anchor = anchorBatch.LockObject(anchorEntry, gameObject);
+                anchorStore.Save(anchorEntry, anchor);
+                remoteAnchorName = string.Empty;
             }
 
             IsAnchorConfigured = true;
@@ -620,11 +638,11 @@ public class AppShareControl : Singleton<AppShareControl>
 
     private void ClearPlacementObjectAnchors()
     {
-        foreach (var anchor in PlacementObject.GetComponents<WorldAnchor>())
+        foreach (var anchor in gameObject.GetComponents<WorldAnchor>())
         {
-            DebugDisplay(string.Format("\nDeleting Anchor: {0} - {1}", anchor.tag, anchor.gameObject.name));
+            DebugDisplay(string.Format("\nDeleting GameObject Anchor: {0} - {1}", anchor.name, anchor.gameObject.name));
             DestroyImmediate(anchor);
-            anchorStore.Clear();
+            anchorStore.Clear();            
         }
     }
 
@@ -657,7 +675,7 @@ public class AppShareControl : Singleton<AppShareControl>
                 break;
             case AnchorManagementState.InitializingRoom:
                 break;
-            case AnchorManagementState.RoomInitialized:                
+            case AnchorManagementState.GetRemoteAnchor:                
                 GetRemoteAnchors();                
                 break;
             case AnchorManagementState.CreateLocalAnchor:
@@ -673,7 +691,7 @@ public class AppShareControl : Singleton<AppShareControl>
                 break;
             case AnchorManagementState.RemoteAnchorDataReady:
                 CurrentState = AnchorManagementState.RemoteAnchorAttaching;
-                WorldAnchorTransferBatch.ImportAsync(anchorRawBytes, AnchorImportComplete);
+                WorldAnchorTransferBatch.ImportAsync(anchorDownloadRawBytes, AnchorImportComplete);
                 break;
             case AnchorManagementState.RemoteAnchorAttaching:
                 break;
